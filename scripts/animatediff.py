@@ -101,6 +101,9 @@ class AnimateDiffScript(scripts.Script):
         model_path = os.path.join(shared.opts.data.get("animatediff_model_path", os.path.join(script_dir, "model")), model_name)
         if not os.path.isfile(model_path):
             raise RuntimeError("Please download models manually.")
+
+
+
         if AnimateDiffScript.motion_module is None or AnimateDiffScript.motion_module.mm_type != model_name:
             def get_mm_hash(model_name="mm_sd_v15.ckpt"):
                 model_hash = hashes.sha256(model_path, f"AnimateDiff/{model_name}")
@@ -132,11 +135,17 @@ class AnimateDiffScript(scripts.Script):
             x = groupnorm32_original_forward(self, x)
             x = rearrange(x, 'b c f h w -> (b f) c h w', b=2)
             return x
-        GroupNorm32.forward = groupnorm32_mm_forward
+
+        #no hack for v2
+        #GroupNorm32.forward = groupnorm32_mm_forward
         self.logger.info(f"Injecting motion module {model_name} into SD1.5 UNet input blocks.")
         for mm_idx, unet_idx in enumerate([1, 2, 4, 5, 7, 8, 10, 11]):
             mm_idx0, mm_idx1 = mm_idx // 2, mm_idx % 2
             unet.input_blocks[unet_idx].append(AnimateDiffScript.motion_module.down_blocks[mm_idx0].motion_modules[mm_idx1])
+
+        #for v2   
+        self.logger.info(f"Injecting motion module {model_name} into SD1.5 UNet mid block.")   
+        unet.middle_block.insert(2, AnimateDiffScript.motion_module.mid_block.motion_modules[0])
         self.logger.info(f"Injecting motion module {model_name} into SD1.5 UNet output blocks.")
         for unet_idx in range(12):
             mm_idx0, mm_idx1 = unet_idx // 3, unet_idx % 3
@@ -151,6 +160,10 @@ class AnimateDiffScript(scripts.Script):
         self.logger.info(f"Removing motion module from SD1.5 UNet input blocks.")
         for unet_idx in [1, 2, 4, 5, 7, 8, 10, 11]:
             unet.input_blocks[unet_idx].pop(-1)
+
+        #for v2
+        self.logger.info(f"Removing motion module from SD1.5 UNet middle block.")       
+        unet.middle_block.pop(-2)
         self.logger.info(f"Removing motion module from SD1.5 UNet output blocks.")
         for unet_idx in range(12):
             if unet_idx % 3 == 2 and unet_idx != 11:

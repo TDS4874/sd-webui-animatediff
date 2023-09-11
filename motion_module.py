@@ -25,16 +25,24 @@ class MotionWrapper(nn.Module):
         for c in (320, 640, 1280, 1280):
             self.down_blocks.append(MotionModule(c))
         for c in (1280, 1280, 640, 320):
-            self.up_blocks.append(MotionModule(c, is_up=True))
+            self.up_blocks.append(MotionModule(c, is_up=1))
+
+        #forV2
+        self.mid_block = MotionModule(1280, is_up=-1)
+
         self.mm_type = mm_type
 
 
 class MotionModule(nn.Module):
-    def __init__(self, in_channels, is_up=False):
+    def __init__(self, in_channels, is_up=0):
         super().__init__()
-        self.motion_modules = nn.ModuleList([get_motion_module(in_channels), get_motion_module(in_channels)])
-        if is_up:
+        if is_up == 0:
+            self.motion_modules = nn.ModuleList([get_motion_module(in_channels), get_motion_module(in_channels)])
+        if is_up == 1:
+            self.motion_modules = nn.ModuleList([get_motion_module(in_channels), get_motion_module(in_channels)])
             self.motion_modules.append(get_motion_module(in_channels))
+        if is_up == -1:
+            self.motion_modules = nn.ModuleList([get_motion_module(in_channels)])
 
 
 def get_motion_module(in_channels):
@@ -55,6 +63,9 @@ class VanillaTemporalModule(nn.Module):
         zero_initialize                    = True,
     ):
         super().__init__()
+
+        #for v2
+        temporal_position_encoding_max_len = 32
         
         self.temporal_transformer = TemporalTransformer3DModel(
             in_channels=in_channels,
